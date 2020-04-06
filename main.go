@@ -26,40 +26,8 @@ type SolrInfo struct {
 	}
 }
 
-func getJson(url string, target interface{}) error {
-	client := &http.Client{Timeout: 2 * time.Second}
-	r, err := client.Get(url)
-	if err != nil {
-		return err
-	}
-	defer r.Body.Close()
-
-	return json.NewDecoder(r.Body).Decode(target)
-}
-
-func recordMetrics(url string, sleep time.Duration) {
-	go func(url string, sleep time.Duration) {
-		for {
-			var info = SolrInfo{}
-			err := getJson(url, &info)
-			if err != nil {
-				log.Println(err)
-				solrScrapeErrors.Inc()
-			}
-
-			solrMemoryFree.Set(float64(info.Jvm.Memory.Raw.Free))
-			solrMemoryTotal.Set(float64(info.Jvm.Memory.Raw.Total))
-			solrMemoryMax.Set(float64(info.Jvm.Memory.Raw.Max))
-			solrMemoryUsed.Set(float64(info.Jvm.Memory.Raw.Used))
-
-			time.Sleep(sleep * time.Second)
-		}
-	}(url, sleep)
-}
-
 var (
 	solrUrl        string
-	scrapeInterval int
 	port           int
 	solrMemoryFree = promauto.NewGauge(prometheus.GaugeOpts{
 		Help: "SOLR free memory",
@@ -83,16 +51,42 @@ var (
 	})
 )
 
+func getJson(url string, target interface{}) error {
+	client := &http.Client{Timeout: 2 * time.Second}
+	r, err := client.Get(url)
+	if err != nil {
+		return err
+	}
+	defer r.Body.Close()
+
+	return json.NewDecoder(r.Body).Decode(target)
+}
+
+func wrapMetricsHandler(h http.Handler, url string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var info = SolrInfo{}
+		err := getJson(url, &info)
+		if err != nil {
+			log.Println(err)
+			solrScrapeErrors.Inc()
+		}
+
+		solrMemoryFree.Set(float64(info.Jvm.Memory.Raw.Free))
+		solrMemoryTotal.Set(float64(info.Jvm.Memory.Raw.Total))
+		solrMemoryMax.Set(float64(info.Jvm.Memory.Raw.Max))
+		solrMemoryUsed.Set(float64(info.Jvm.Memory.Raw.Used))
+
+		h.ServeHTTP(w, r)
+	})
+}
+
 func init() {
 	flag.StringVar(&solrUrl, "solr-url", "http://localhost:8983/solr/admin/info/system?wt=json", "SORL info URL")
-	flag.IntVar(&scrapeInterval, "scrape-interval", 2, "Scrape interval")
 	flag.IntVar(&port, "port", 2112, "HTTP server port")
 	flag.Parse()
 }
 
 func main() {
-	recordMetrics(solrUrl, time.Duration(scrapeInterval))
-
-	http.Handle("/metrics", promhttp.Handler())
+	http.Handle("/metrics", wrapMetricsHandler(promhttp.Handler(), solrUrl))
 	http.ListenAndServe(fmt.Sprintf(":%d", port), nil)
 }
