@@ -87,6 +87,18 @@ func init() {
 }
 
 func main() {
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		_, err := w.Write([]byte(`<html>
+<head><title>SOLR Exporter</title></head>
+<body>
+<h1>SOLR Exporter</h1>
+<p><a href="/metrics">Metrics</a></p>
+</body>
+</html>`))
+		if err != nil {
+			log.Println(err)
+		}
+	})
 	http.Handle("/metrics", wrapMetricsHandler(promhttp.Handler(), solrUrl))
 	http.ListenAndServe(fmt.Sprintf(":%d", port), nil)
 }
