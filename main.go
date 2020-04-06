@@ -62,18 +62,23 @@ var (
 	scrapeInterval int
 	port           int
 	solrMemoryFree = promauto.NewGauge(prometheus.GaugeOpts{
+		Help: "SOLR free memory",
 		Name: "solr_memory_free",
 	})
 	solrMemoryTotal = promauto.NewGauge(prometheus.GaugeOpts{
+		Help: "SOLR total memory",
 		Name: "solr_memory_total",
 	})
 	solrMemoryMax = promauto.NewGauge(prometheus.GaugeOpts{
+		Help: "SOLR max memory",
 		Name: "solr_memory_max",
 	})
 	solrMemoryUsed = promauto.NewGauge(prometheus.GaugeOpts{
+		Help: "SOLR used memory",
 		Name: "solr_memory_used",
 	})
 	solrScrapeErrors = promauto.NewCounter(prometheus.CounterOpts{
+		Help: "SOLR scraping errors count",
 		Name: "solr_scrape_errors",
 	})
 )
